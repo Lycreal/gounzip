@@ -1,30 +1,38 @@
 package main
 
 import (
-	"archive/zip"
 	"flag"
 	"fmt"
-	"io"
+	gounzip "gounzip/gozunip"
 	"os"
-	"path/filepath"
-	"strings"
 
-	"golang.org/x/text/encoding/japanese"
-	"golang.org/x/text/transform"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/ianaindex"
 )
 
-var zipfile, exdir, encoding string
+var zipfile, exdir, charset string
+var parallel int
+var verbose bool
+var enc encoding.Encoding
+
+const usage = `Usage: gounzip [options...] <file>
+  -d <EXDIR>    extract files into exdir
+  -O <CHARSET>  specify a character encoding for DOS, Windows and OS/2 archives
+  -p <NUM>      set the number of parallel jobs to run
+  -v            print file names while processing
+
+unzip with support for filename encoding and parallel decompression.
+source code: https://github.com/Lycreal/gounzip
+`
 
 func Init() {
 	flag.StringVar(&exdir, "d", "", "extract files into exdir")
-	flag.StringVar(&encoding, "e", "UTF-8", "specific file name encoding")
+	flag.StringVar(&charset, "O", "UTF-8", "specific file name encoding")
+	flag.IntVar(&parallel, "p", 1, "set the number of parallel jobs to run")
+	flag.BoolVar(&verbose, "v", false, "print file names while processing")
 
 	flag.Usage = func() {
-		fmt.Print(`Usage: gounzip [-d exdir] [-e encoding] zipfile
-  -d exdir     extract files into exdir
-  -e encoding  specific file name encoding, support UTF-8(default), Shift_JIS
-  zipfile      zip file to be extracted
-`)
+		fmt.Print(usage)
 	}
 	flag.Parse()
 	zipfile = flag.Arg(0)
@@ -33,88 +41,19 @@ func Init() {
 		flag.Usage()
 		os.Exit(1)
 	}
-}
 
-func extractFileToPath(file *zip.File, path string) error {
-	if file.FileInfo().IsDir() {
-		err := os.MkdirAll(path, file.Mode())
-		if err != nil {
-			return err
-		}
-		return nil
+	var err error
+	enc, err = ianaindex.MIB.Encoding(charset)
+	if err != nil || enc == nil {
+		fmt.Printf("error: Invalid charset.\n")
+		os.Exit(1)
 	}
-
-	fileReader, err := file.Open()
-	if err != nil {
-		return err
-	}
-	defer fileReader.Close()
-
-	// 打开目标文件，当存在时覆盖
-	fileWriter, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, file.Mode())
-	if os.IsNotExist(err) {
-		// 创建上级目录
-		if err2 := os.MkdirAll(filepath.Dir(path), file.Mode()); err2 != nil {
-			return err2
-		}
-		fileWriter, err = os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, file.Mode())
-	}
-	if err != nil {
-		return err
-	}
-	defer fileWriter.Close()
-
-	_, err = io.Copy(fileWriter, fileReader)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Thanks to: https://broqiang.com/posts/archive-zip
-func UnZip(dst, src string) (err error) {
-	zr, err := zip.OpenReader(src)
-	if err != nil {
-		return
-	}
-	if dst != "" {
-		if err := os.MkdirAll(dst, 0755); err != nil {
-			return err
-		}
-	}
-
-	// 遍历 zr ，将文件写入到磁盘
-	for _, file := range zr.File {
-		var filename string
-
-		// 修复日文文件名乱码
-		if strings.EqualFold(encoding, "Shift_JIS") {
-			b, err := io.ReadAll(transform.NewReader(strings.NewReader(file.Name), japanese.ShiftJIS.NewDecoder()))
-			if err != nil {
-				return err
-			}
-			filename = string(b)
-		} else {
-			filename = file.Name
-		}
-
-		path := filepath.Join(dst, filename)
-
-		err = extractFileToPath(file, path)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("%s\n", path)
-	}
-	return nil
 }
 
 func main() {
 	Init()
-
-	err := UnZip(exdir, zipfile)
+	//numcpu
+	err := gounzip.UnZip(exdir, zipfile, enc, parallel, verbose)
 	if err != nil {
 		fmt.Printf("error: %v", err.Error())
 	}
