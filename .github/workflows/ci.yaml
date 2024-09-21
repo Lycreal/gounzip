@@ -1,0 +1,37 @@
+# https://docs.github.com/zh/actions/use-cases-and-examples/building-and-testing/building-and-testing-go
+
+name: CI
+
+on: push
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest', 'windows-latest' ]
+        go-version: [ '1.22' ]
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        run: go get .
+
+      - name: Build
+        run: go build -o "gounzip-${{ matrix.os }}"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: gounzip-${{ matrix.os }}
+          token: ${{ secrets.GITHUB_TOKEN }}
