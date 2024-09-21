@@ -17,7 +17,7 @@ var enc encoding.Encoding
 
 const usage = `Usage: gounzip [options...] <file>
   -d <EXDIR>    extract files into exdir
-  -O <CHARSET>  specify a character encoding for DOS, Windows and OS/2 archives
+  -O <CHARSET>  specify a character encoding for filenames
   -p <NUM>      set the number of parallel jobs to run
   -v            print file names while processing
 

@@ -13,6 +13,11 @@ jobs:
       matrix:
         os: [ 'ubuntu-latest', 'windows-latest' ]
         go-version: [ '1.22' ]
+        include:
+          - os: ubuntu-latest
+            output: gounzip-linux
+          - os: windows-latest
+            output: gounzip-windows.exe
 
     steps:
       - name: "Checkout"
@@ -27,11 +32,10 @@ jobs:
         run: go get .
 
       - name: Build
-        run: go build -o "gounzip-${{ matrix.os }}"
+        run: go build -o ${{ matrix.output }}
 
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: gounzip-${{ matrix.os }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          files: ${{ matrix.output }}
